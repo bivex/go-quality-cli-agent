@@ -12,7 +12,13 @@ No CI/CD, no SaaS dashboards, no web interfaces.
 │   ├── golang-compliance.md       ← Lint, vet, staticcheck agent
 │   ├── golang-architecture.md     ← Dependency graphs, call graphs agent
 │   ├── golang-metrics.md          ← Complexity & LOC metrics agent
-│   └── golang-profiling.md        ← CPU/mem/trace profiling agent
+│   ├── golang-profiling.md        ← CPU/mem/trace profiling agent
+│   ├── golang-concurrency.md      ← Race detector, goroutines, channels
+│   ├── golang-error-handling.md   ← Errors, panics, sentinel rules
+│   ├── golang-testing.md          ← Coverage, mocks, test structure
+│   ├── golang-project-structure.md ← Layout, internal/, import hygiene
+│   ├── golang-security.md         ← CVEs, gosec, unsafe, secrets
+│   └── golang-style-guide.md      ← gofmt, naming, comments, idioms
 └── skills/
     ├── golang-compliance/
     │   ├── SKILL.md               ← Detailed linting workflows
@@ -26,10 +32,16 @@ No CI/CD, no SaaS dashboards, no web interfaces.
     │   ├── SKILL.md               ← Complexity & LOC workflows
     │   └── examples/
     │       └── metrics-report.sh
-    └── golang-profiling/
-        ├── SKILL.md               ← pprof, benchmarks, trace workflows
-        └── examples/
-            └── profile-report.sh
+    ├── golang-profiling/
+    │   ├── SKILL.md               ← pprof, benchmarks, trace workflows
+    │   └── examples/
+    │       └── profile-report.sh
+    ├── golang-concurrency/SKILL.md
+    ├── golang-error-handling/SKILL.md
+    ├── golang-testing/SKILL.md
+    ├── golang-project-structure/SKILL.md
+    ├── golang-security/SKILL.md
+    └── golang-style-guide/SKILL.md
 ```
 
 ## Three Agents — When to Use Each
@@ -40,6 +52,12 @@ No CI/CD, no SaaS dashboards, no web interfaces.
 | `golang-architecture` | "show dependencies", "visualize architecture", "find cycles" | `goda`, `go-callvis`, `go list`, `go mod graph` |
 | `golang-metrics` | "how complex is this?", "find hard functions", "lines of code" | `gocyclo`, `gocognit`, `gocloc` |
 | `golang-profiling` | "why is this slow?", "memory leak", "run benchmarks", "profile CPU" | `go tool pprof`, `go test -bench`, `benchstat` |
+| `golang-concurrency` | "check goroutines", "find data races", "context rules" | `go test -race`, `go vet`, `golangci-lint` |
+| `golang-error-handling` | "check error wrapping", "find panics", "sentinel rules" | `golangci-lint`, `go vet`, `grep` |
+| `golang-testing` | "run tests", "check coverage", "create mocks" | `go test`, `go tool cover`, `mockgen` |
+| `golang-project-structure` | "check layout", "format imports", "find bad package names" | `go imports`, `goda`, `go list` |
+| `golang-security` | "scan for vulnerabilities", "find hardcoded secrets" | `govulncheck`, `gosec`, `grep` |
+| `golang-style-guide` | "format code", "check naming", "lint comments" | `gofmt`, `goimports`, `golangci-lint` |
 
 ## Mapping to SciTools Understand
 
@@ -83,6 +101,13 @@ go install github.com/loov/goda@latest
 go install github.com/ofabry/go-callvis@latest
 brew install graphviz   # macOS (для dot → SVG/PNG)
 
-# Profiling
+# Profiling & Testing
 go install golang.org/x/perf/cmd/benchstat@latest
+go install go.uber.org/mock/mockgen@latest
+go install gotest.tools/gotestsum@latest
+
+# Security & Style
+go install golang.org/x/vuln/cmd/govulncheck@latest
+go install github.com/securego/gosec/v2/cmd/gosec@latest
+go install golang.org/x/tools/cmd/goimports@latest
 ```
