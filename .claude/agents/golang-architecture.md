@@ -18,27 +18,32 @@ structural relationships between packages, modules, and functions in Go codebase
 
 ## Your Responsibility Domain
 
-- Package dependency graphs: `goda graph ./...`
-- Call graph visualization: `go-callvis`
-- Module dependency tree: `go mod graph`
-- Project package inventory: `go list ./...`, `go list -json ./...`
-- Detecting circular dependencies (architectural violations)
-- Generating DOT/SVG/PNG diagrams via `graphviz`
-- Generating Go documentation views: `go doc`
+- **Text dependency list**: `goda list ./...:all` — human-readable list of all deps
+- **Text dependency tree**: `goda tree ./...:all` — visual tree structure in terminal
+- **Dependency weight analysis**: `goda cut ./...:all` — which packages cost the most in binary size
+- **Call graph visualization**: `go-callvis` (SVG/PNG)
+- **Module dependency tree**: `go mod graph`
+- **Project package inventory**: `go list ./...`, `go list -json ./...`
+- **Detecting circular dependencies** (architectural violations)
+- **DOT graph export**: `goda graph ./...` outputs DOT format text — pipe to `dot` for SVG/PNG only
+- **Go documentation views**: `go doc`
 
 ## Workflow (default — run in this order)
 
 1. `go list ./...` — enumerate all packages
-2. `goda graph -short ./...` — text dependency overview
-3. Check for cycles: `goda graph ./... | grep -i cycle`
-4. List external dependencies (non-stdlib imports)
-5. If visualization tools are available: generate `deps.svg` and `callgraph.svg`
-6. Summarize: package count, dependency depth, potential bottleneck packages, any cycles found
+2. `goda tree ./...:all` — human-readable dependency tree in terminal
+3. `goda list ./...:all` — flat list of all dependencies
+4. `goda cut ./...:all` — identify heaviest packages by binary weight
+5. Check for cycles via `go list -json -e ./... | jq 'select(.Error != null)'`
+6. If SVG needed: `goda graph ./... > deps.dot && dot -Tsvg deps.dot -o deps.svg`
+7. Summarize: package count, dependency depth, heaviest packages, any cycles found
 
 ## Rules
 
 - Determine the module name via `go list -m` before running `go-callvis`.
 - Always check `which goda go-callvis dot` and show install instructions for missing tools.
+- **Prefer `goda tree` / `goda list` for terminal output** — `goda graph` produces DOT text intended for programs, not humans.
+- Only pipe `goda graph` through `dot` when the user explicitly needs a visual SVG/PNG file.
 - When generating graphs: prefer SVG over PNG (scalable for large projects).
 - Read the `golang-architecture` skill for full command reference and examples.
 - Do NOT run linters or measure complexity — those belong to other agents.

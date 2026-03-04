@@ -2,7 +2,7 @@
 # architecture-analysis.sh
 # Полный анализ архитектуры Go-проекта (аналог und export -dependencies)
 # Запуск: bash architecture-analysis.sh [optional-module-path]
-# Требования: goda, go-callvis, graphviz (dot)
+# Требования: goda (обязательно), go-callvis + graphviz (опционально, для SVG)
 
 set -e
 
@@ -19,77 +19,108 @@ echo "  $(date '+%Y-%m-%d %H:%M')"
 echo "=============================="
 
 # --- Tool checks ---
-MISSING=0
-for tool in goda go-callvis dot; do
-  if ! which "$tool" > /dev/null 2>&1; then
-    echo "WARNING: $tool not found"
-    MISSING=1
-  fi
-done
+MISSING_GODA=0
+if ! which goda > /dev/null 2>&1; then
+  echo "WARNING: goda not found"
+  echo "  Install: go install github.com/loov/goda@latest"
+  MISSING_GODA=1
+fi
 
-if [ "$MISSING" -eq 1 ]; then
-  echo ""
-  echo "Install missing tools:"
-  echo "  go install github.com/loov/goda@latest"
+HAVE_CALLVIS=0
+if which go-callvis > /dev/null 2>&1; then HAVE_CALLVIS=1; fi
+
+HAVE_DOT=0
+if which dot > /dev/null 2>&1; then HAVE_DOT=1; fi
+
+if [ "$HAVE_CALLVIS" -eq 0 ] || [ "$HAVE_DOT" -eq 0 ]; then
+  echo "NOTE: SVG visualizations skipped (optional tools missing)"
   echo "  go install github.com/ofabry/go-callvis@latest"
   echo "  brew install graphviz  # macOS"
-  echo ""
 fi
-
 echo ""
+
+# --- 1. Package inventory ---
 echo "--- 1. PACKAGE LIST ---"
-go list ./... | sort
+PKG_COUNT=$(go list ./... 2>/dev/null | tee /tmp/_pkglist.txt | wc -l | tr -d ' ')
+cat /tmp/_pkglist.txt | sort
+echo "(total: $PKG_COUNT packages)"
 
+# --- 2. Flat dependency list (human-readable) ---
 echo ""
-echo "--- 2. DEPENDENCY GRAPH (text) ---"
-if which goda > /dev/null 2>&1; then
-  goda graph -short ./...
+echo "--- 2. DEPENDENCY LIST (goda list) ---"
+if [ "$MISSING_GODA" -eq 0 ]; then
+  goda list ./...:all
 else
-  echo "(goda not installed — run: go install github.com/loov/goda@latest)"
+  echo "(skipped — goda not installed)"
 fi
 
+# --- 3. Dependency tree (human-readable, best for architecture review) ---
 echo ""
-echo "--- 3. CYCLE CHECK ---"
-if which goda > /dev/null 2>&1; then
-  CYCLES=$(goda graph ./... 2>&1 | grep -i cycle || true)
-  if [ -z "$CYCLES" ]; then
-    echo "✓ No circular dependencies detected"
-  else
-    echo "⚠ CYCLES FOUND:"
-    echo "$CYCLES"
-  fi
+echo "--- 3. DEPENDENCY TREE (goda tree) ---"
+if [ "$MISSING_GODA" -eq 0 ]; then
+  goda tree ./...:all
+else
+  echo "(skipped — goda not installed)"
 fi
 
+# --- 4. Dependency weight (which packages are heaviest) ---
 echo ""
-echo "--- 4. EXTERNAL DEPENDENCIES ---"
-go list -json ./... | \
-  python3 -c "
-import json, sys
-deps = set()
-for line in sys.stdin:
-    try:
-        data = json.loads(line)
-        for imp in data.get('Imports', []):
-            if not imp.startswith('$(go list -m)') and '.' in imp:
-                deps.add(imp.split('/')[0] + '/' + imp.split('/')[1] if '/' in imp else imp)
-    except: pass
-for d in sorted(deps): print(d)
-" 2>/dev/null || go list -json ./... | grep -o '"[a-z][a-z0-9_.-]*/[a-z][^"]*"' | sort -u | head -30
+echo "--- 4. DEPENDENCY WEIGHT (goda cut) ---"
+if [ "$MISSING_GODA" -eq 0 ]; then
+  goda cut ./...:all
+else
+  echo "(skipped — goda not installed)"
+fi
 
+# --- 5. Cycle check ---
 echo ""
-echo "--- 5. VISUALIZATIONS ---"
-if which goda > /dev/null 2>&1 && which dot > /dev/null 2>&1; then
+echo "--- 5. CYCLE CHECK ---"
+CYCLES=$(go build ./... 2>&1 | grep -i "import cycle" || true)
+if [ -z "$CYCLES" ]; then
+  echo "✓ No circular dependencies detected (go build clean)"
+else
+  echo "⚠ IMPORT CYCLES FOUND:"
+  echo "$CYCLES"
+fi
+
+# Also check via go list for compile-time errors
+go list -json -e ./... 2>/dev/null | \
+  jq -r 'select(.Error != null) | "  ⚠ \(.ImportPath): \(.Error.Err)"' 2>/dev/null || true
+
+# --- 6. External dependencies ---
+echo ""
+echo "--- 6. EXTERNAL DEPENDENCIES ---"
+go list -json ./... 2>/dev/null | \
+  jq -r '.Imports[]' 2>/dev/null | \
+  grep '\.' | \
+  grep -v "^$(go list -m)" | \
+  sort -u | head -40 \
+  || go list -json ./... | grep '"[a-z].*\.[a-z]' | sort -u | head -30
+
+# --- 7. SVG visualizations (optional) ---
+echo ""
+echo "--- 7. VISUALIZATIONS (SVG) ---"
+if [ "$MISSING_GODA" -eq 0 ] && [ "$HAVE_DOT" -eq 1 ]; then
   goda graph ./... > /tmp/deps.dot 2>/dev/null
-  dot -Tsvg /tmp/deps.dot -o deps.svg 2>/dev/null && echo "✓ deps.svg generated" || echo "dot rendering failed"
+  dot -Tsvg /tmp/deps.dot -o deps.svg 2>/dev/null \
+    && echo "✓ deps.svg generated (package dependency graph)" \
+    || echo "dot rendering failed"
+else
+  echo "(skipped — requires goda + graphviz)"
 fi
 
-if which go-callvis > /dev/null 2>&1; then
-  go-callvis -nostd -group pkg,dom -file callgraph.svg "$MODULE" 2>/dev/null && \
-    echo "✓ callgraph.svg generated" || \
-    echo "go-callvis: could not generate graph (ensure project builds cleanly)"
+if [ "$HAVE_CALLVIS" -eq 1 ]; then
+  go-callvis -nostd -group pkg,dom -file callgraph.svg "$MODULE" 2>/dev/null \
+    && echo "✓ callgraph.svg generated (function call graph)" \
+    || echo "go-callvis: failed (ensure project builds cleanly)"
+else
+  echo "(call graph skipped — go-callvis not installed)"
 fi
 
 echo ""
 echo "=============================="
 echo "  ANALYSIS COMPLETE"
 echo "=============================="
+echo ""
+echo "Text output above is readable directly."
+echo "SVG files (if generated): deps.svg, callgraph.svg"

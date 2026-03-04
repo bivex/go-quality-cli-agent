@@ -17,9 +17,10 @@ of `und export -dependencies` and the Architecture Diagrams view in SciTools Und
 
 | Und Command | Go Equivalent |
 |-------------|--------------|
-| `und export -dependencies` | `goda graph ./...` |
-| Architecture Diagrams | `go-callvis` (SVG/PNG) |
-| Dependency Tree | `go mod graph` |
+| `und export -dependencies` | `goda list ./...:all` (текст) / `goda tree ./...:all` (дерево) |
+| Architecture Diagrams | `go-callvis` (SVG/PNG) / `goda graph \| dot` (SVG) |
+| Dependency Weight | `goda cut ./...:all` |
+| Dependency Tree | `go mod graph` / `goda tree ./...:all` |
 | `und list files` | `go list ./...` |
 | `und list functions` | `go list -json ./...` |
 
@@ -36,46 +37,67 @@ which go-callvis || echo "MISSING: go install github.com/ofabry/go-callvis@lates
 which dot || echo "MISSING: brew install graphviz  (macOS) / apt install graphviz (Linux)"
 ```
 
-## Workflow A — Package Dependency Graph
+## Workflow A — Package Dependency Analysis (goda)
 
-### A1. Text Overview (fast, no rendering)
+> **Важно:** `goda graph` выводит текст в формате DOT (для программ типа graphviz).
+> Для **читаемого вывода в терминале** используйте `goda list` и `goda tree`.
+
+### A1. Список зависимостей (текст)
 
 ```bash
-# Все зависимости пакетов в проекте (краткий формат)
-goda graph -short ./...
+# Плоский список всех зависимостей проекта — самый простой вариант
+goda list ./...:all
 
-# Только прямые зависимости (без транзитивных)
-goda graph -nocolor ./... | head -50
+# Только прямые зависимости конкретного пакета
+goda list github.com/myorg/myproject/cmd/server:...
 
-# Зависимости конкретного пакета
-goda graph github.com/myorg/myproject/cmd/server:...
+# Отфильтровать только внешние (не стандартные) зависимости
+goda list ./...:all | grep -v "^std"
 ```
 
-### A2. DOT Export for Visualization
+### A2. Дерево зависимостей (текст, наглядная структура)
 
 ```bash
-# Экспорт в DOT (формат Graphviz)
+# Дерево зависимостей всего проекта в терминале
+goda tree ./...:all
+
+# Дерево конкретного пакета
+goda tree github.com/myorg/myproject/cmd/server:...
+```
+
+### A3. Анализ веса зависимостей
+
+```bash
+# Какие пакеты занимают больше всего места в бинарнике
+goda cut ./...:all
+
+# Вес конкретного бинарника (если уже собран)
+goda weight ./path/to/binary
+```
+
+### A4. Поиск циклических зависимостей
+
+```bash
+# Через go list — найти пакеты с ошибками (включая import cycles)
+go list -json -e ./... | jq -r 'select(.Error != null) | "\(.ImportPath): \(.Error.Err)"'
+
+# Быстрая проверка через go build (import cycles = ошибка компиляции)
+go build ./... 2>&1 | grep -i "import cycle"
+```
+
+### A5. Экспорт в SVG/PNG (только если нужна картинка)
+
+```bash
+# goda graph выводит DOT-формат → передать в dot для рендеринга
 goda graph ./... > deps.dot
 
-# Конвертация в PNG
-dot -Tpng deps.dot -o deps.png
-
-# Конвертация в SVG (масштабируемый, лучше для больших проектов)
+# Конвертация в SVG (предпочтительно — масштабируемый)
 dot -Tsvg deps.dot -o deps.svg
-
-# Открыть результат
-open deps.svg   # macOS
+open deps.svg      # macOS
 xdg-open deps.svg  # Linux
-```
 
-### A3. Find Circular (Cyclic) Dependencies
-
-```bash
-# Поиск циклических зависимостей — критично для архитектуры
-goda graph ./... | grep -i "cycle" || echo "No cycles detected"
-
-# Более детальный поиск через go list
-go list -json ./... | jq -r 'select(.Error != null) | "\(.ImportPath): \(.Error.Err)"'
+# Или PNG
+dot -Tpng deps.dot -o deps.png
 ```
 
 ## Workflow B — Call Graph (go-callvis)
@@ -154,18 +176,20 @@ go list ./... | xargs -I{} go doc {} 2>/dev/null | grep "^func\|^type\|^var\|^co
 
 ## Reading Architecture Output
 
-When interpreting `goda graph` output:
+When interpreting `goda tree` / `goda list` output:
 
-- `A → B` means package A imports package B
-- A node appearing many times as a TARGET is a core/shared package (potential bottleneck)
-- A node appearing many times as a SOURCE is a high-coupling package (consider refactoring)
-- Cycles (`A → B → A`) are architectural violations in Go — they prevent clean layering
+- Каждая строка в `goda list` — один пакет с его полным import path
+- В `goda tree` вложенность показывает транзитивные зависимости
+- Пакет, встречающийся глубоко во многих ветках `goda tree` — общая зависимость (potential bottleneck)
+- Packages с длинной цепочкой в `goda cut` — кандидаты на замену более лёгкими альтернативами
+- Cycles (`A → B → A`) = ошибка `import cycle not allowed` при сборке — критично
 
-Key architectural questions to answer:
-1. Are there cycles? (`goda graph | grep cycle`)
-2. Which packages have the most dependents? (high coupling)
-3. Are internal packages properly isolated from cmd packages?
-4. Does the dependency flow respect layering (cmd → internal → pkg)?
+Key architectural questions to answer with these tools:
+1. **Cycles?** — `go build ./... 2>&1 | grep -i cycle`
+2. **Heaviest deps?** — `goda cut ./...:all`
+3. **Dependency depth?** — `goda tree ./...:all` (depth of nesting)
+4. **Isolation check** — are `internal/` packages only referenced from within their parent?
+5. **Layering** — does the flow respect `cmd → internal → pkg` without back-references?
 
 ## Supporting Files
 
