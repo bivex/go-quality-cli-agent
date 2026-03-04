@@ -11,7 +11,8 @@ No CI/CD, no SaaS dashboards, no web interfaces.
 ├── agents/
 │   ├── golang-compliance.md       ← Lint, vet, staticcheck agent
 │   ├── golang-architecture.md     ← Dependency graphs, call graphs agent
-│   └── golang-metrics.md          ← Complexity & LOC metrics agent
+│   ├── golang-metrics.md          ← Complexity & LOC metrics agent
+│   └── golang-profiling.md        ← CPU/mem/trace profiling agent
 └── skills/
     ├── golang-compliance/
     │   ├── SKILL.md               ← Detailed linting workflows
@@ -21,10 +22,14 @@ No CI/CD, no SaaS dashboards, no web interfaces.
     │   ├── SKILL.md               ← Dependency & call-graph workflows
     │   └── examples/
     │       └── architecture-analysis.sh
-    └── golang-metrics/
-        ├── SKILL.md               ← Complexity & LOC workflows
+    ├── golang-metrics/
+    │   ├── SKILL.md               ← Complexity & LOC workflows
+    │   └── examples/
+    │       └── metrics-report.sh
+    └── golang-profiling/
+        ├── SKILL.md               ← pprof, benchmarks, trace workflows
         └── examples/
-            └── metrics-report.sh
+            └── profile-report.sh
 ```
 
 ## Three Agents — When to Use Each
@@ -34,6 +39,7 @@ No CI/CD, no SaaS dashboards, no web interfaces.
 | `golang-compliance` | "check code quality", "run linters", "find bugs" | `golangci-lint`, `staticcheck`, `go vet`, `revive` |
 | `golang-architecture` | "show dependencies", "visualize architecture", "find cycles" | `goda`, `go-callvis`, `go list`, `go mod graph` |
 | `golang-metrics` | "how complex is this?", "find hard functions", "lines of code" | `gocyclo`, `gocognit`, `gocloc` |
+| `golang-profiling` | "why is this slow?", "memory leak", "run benchmarks", "profile CPU" | `go tool pprof`, `go test -bench`, `benchstat` |
 
 ## Mapping to SciTools Understand
 
@@ -44,6 +50,7 @@ No CI/CD, no SaaS dashboards, no web interfaces.
 | `und metrics` | `golang-metrics` | `gocyclo`, `gocognit`, `gocloc` |
 | `und export -dependencies` | `golang-architecture` | `goda graph ./...` / `go-callvis` |
 | `und list` | `golang-architecture` | `go list ./...` / `go list -json ./...` |
+| Performance analysis | `golang-profiling` | `go tool pprof`, `go test -bench`, `benchstat` |
 
 ## Scope Boundaries
 
@@ -75,4 +82,7 @@ go install github.com/hhatto/gocloc/cmd/gocloc@latest
 go install github.com/loov/goda@latest
 go install github.com/ofabry/go-callvis@latest
 brew install graphviz   # macOS (для dot → SVG/PNG)
+
+# Profiling
+go install golang.org/x/perf/cmd/benchstat@latest
 ```

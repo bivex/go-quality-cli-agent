@@ -65,6 +65,35 @@ gocloc ./                # lines of code breakdown
 
 ---
 
+### `golang-profiling` — Performance Profiling
+
+> *"Why is this slow?"* / *"Find memory leaks"* / *"Run benchmarks"* / *"Compare performance"*
+
+Covers the full pprof toolchain: CPU profiling, memory profiling, goroutine analysis, execution tracing, and statistical benchmark comparison.
+
+```bash
+# Benchmarks with allocation stats
+go test -bench=. -benchmem -count=5 ./...
+
+# CPU hotspots
+go test -bench=. -cpuprofile=cpu.out ./pkg/...
+go tool pprof -top cpu.out
+
+# Memory allocations
+go test -bench=. -memprofile=mem.out ./pkg/...
+go tool pprof -alloc_objects -top mem.out
+
+# Compare before/after
+benchstat bench-before.txt bench-after.txt
+
+# Live service profiling
+go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+```
+
+**Tools:** `go test -bench` · `go tool pprof` · `go tool trace` · `benchstat`
+
+---
+
 ## SciTools Understand → Go CLI mapping
 
 | `und` command | Agent | Go CLI |
@@ -74,6 +103,7 @@ gocloc ./                # lines of code breakdown
 | `und metrics` | metrics | `gocyclo`, `gocognit`, `gocloc` |
 | `und export -dependencies` | architecture | `goda list/tree/cut ./...:all` |
 | `und list` | architecture | `go list ./...` / `go list -json ./...` |
+| Performance analysis | **profiling** | `go tool pprof`, `go test -bench`, `benchstat` |
 
 ---
 
@@ -94,6 +124,9 @@ go install github.com/hhatto/gocloc/cmd/gocloc@latest
 go install github.com/loov/goda@latest
 go install github.com/ofabry/go-callvis@latest
 brew install graphviz   # macOS — for SVG rendering only
+
+# Profiling
+go install golang.org/x/perf/cmd/benchstat@latest
 ```
 
 ## Usage
@@ -106,4 +139,5 @@ Claude Code picks the right agent automatically based on your request.
 /golang-compliance
 /golang-architecture
 /golang-metrics
+/golang-profiling
 ```
