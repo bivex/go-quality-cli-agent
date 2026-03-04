@@ -1,1 +1,2 @@
-# claude-code-boilerplate-agent
+# go-quality-cli-agent
+
